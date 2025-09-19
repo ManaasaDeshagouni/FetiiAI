@@ -17,7 +17,7 @@ from query_engine import (
     natural_summary,
     friendly_response,
 )
-from enhanced_gpt_router_v3 import enhanced_gpt_route_v3
+from gpt_router import gpt_route
 
 # === Page Setup ===
 st.set_page_config(page_title="FetiiAI Chatbot", layout="wide", initial_sidebar_state="expanded")
@@ -32,7 +32,7 @@ def log_event(question: str, route: dict, status: str, rows: int | None = None, 
             if not exists:
                 writer.writerow(["timestamp","question","status","route_type","function","rows"])
             writer.writerow([
-                datetime.utcnow().isoformat(),
+                datetime.now(datetime.UTC).isoformat(),
                 question,
                 status,
                 route.get("type") if isinstance(route, dict) else None,
@@ -82,14 +82,61 @@ st.markdown("""
         margin-top: 0.5rem;
     }
     
-    /* Chat Container */
+    /* Chat Container - transparent to remove white block */
     .chat-container {
-        background: #ffffff;
-        padding: 2rem;
+        background: transparent;
+        padding: 0;
         border-radius: 16px;
         margin: 1.5rem 0;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        border: 1px solid #e5e7eb;
+        box-shadow: none;
+        border: none;
+    }
+
+    /* Highlighted answer block */
+    .answer-highlight {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 1.25rem;
+        border-radius: 12px;
+        border: 1px solid #065f46;
+        box-shadow: 0 6px 20px rgba(16,185,129,0.25);
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-top: 0.5rem;
+        word-wrap: break-word;
+    }
+
+    /* Normalize text inputs without clipping */
+    div[data-baseweb="base-input"],
+    div[data-baseweb="input"] {
+        min-height: 56px;
+        border-radius: 12px;
+        box-sizing: border-box;
+    }
+    div[data-baseweb="base-input"] input,
+    div[data-baseweb="input"] input {
+        height: auto !important; /* allow natural height to prevent cut-off */
+        padding: 0.9rem 1rem !important;
+        line-height: 1.45 !important;
+        box-sizing: border-box;
+    }
+    /* Stronger selectors for Streamlit text components */
+    .stTextInput > div > div,
+    .stTextArea > div > div {
+        min-height: 56px !important;
+        border-radius: 12px !important;
+    }
+    .stTextInput input,
+    .stTextArea textarea {
+        height: auto !important;
+        padding: 0.9rem 1rem !important;
+        line-height: 1.45 !important;
+    }
+    /* Friendly focus glow */
+    div[data-baseweb="base-input"]:focus-within,
+    div[data-baseweb="input"]:focus-within {
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.35);
+        border-radius: 12px;
     }
     
     /* Professional Buttons */
@@ -99,19 +146,23 @@ st.markdown("""
         color: white;
         border: none;
         border-radius: 12px;
-        padding: 0.75rem 1.5rem;
+        padding: 0.9rem 1.25rem;
         font-weight: 600;
         font-size: 1rem;
         width: 100%;
-        min-height: 86px; /* ensure same height even if text is short */
-        display: inline-flex;
+        min-height: 56px;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
         align-items: center;
         justify-content: center;
         text-align: center;
-        line-height: 1.3;
+        line-height: 1.25;
         transition: all 0.2s ease;
         box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
-        white-space: normal; /* allow wrapping without shrinking height */
+        overflow: hidden; /* prevent growth for long text */
+        text-overflow: ellipsis;
+        white-space: normal;
         word-break: break-word;
     }
     .stButton > button:hover,
@@ -387,7 +438,7 @@ if user_input:
 
     # 🔄 Route input through Enhanced GPT Router 3.0 (Function Calling) with conversation context
     conversation_history = st.session_state.get('history', [])
-    route = enhanced_gpt_route_v3(user_input, conversation_history)
+    route = gpt_route(user_input, conversation_history)
 
     # 🧠 Debug expander (hidden by default, only for development)
     if st.session_state.get('debug_mode', False):
@@ -433,12 +484,31 @@ if user_input:
                     response_text = pre_response or "No results found for that query. Try changing the day, age group, or location."
             elif func_type == "natural_response":
                 response_text = pre_response or "I couldn't route that to a specific analysis, but I'm here to help!"
+                # Quick visual prompt even for clarifications: simple rides per day chart
+                try:
+                    group = df.groupby(df['pickup_time'].dt.day_name()).size().reindex([
+                        'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'
+                    ])
+                    fig, ax = plt.subplots(figsize=(6,2.6))
+                    group.plot(kind='bar', color="#60a5fa", ax=ax)
+                    ax.set_title("Rides per Day (quick view)")
+                    ax.set_ylabel("")
+                    ax.set_xlabel("")
+                    ax.grid(axis='y', linestyle='--', alpha=0.3)
+                    plt.tight_layout()
+                    chart = fig
+                except Exception:
+                    pass
         except Exception as e:
             response_text = f"❌ Error occurred: {str(e)}"
 
-        # Attach suggestions if any
+        # Attach suggestions as clickable buttons
+        suggestion_buttons = []
         if suggestions:
-            response_text += "\n\n**💡 Try asking:**\n" + "\n".join(f"• {s}" for s in suggestions)
+            st.markdown("""
+            <div style='margin-top: 0.75rem; display:flex; flex-wrap: wrap; gap: 0.5rem;'>
+            </div>
+            """, unsafe_allow_html=True)
 
         # Save to history
         st.session_state.history.append((user_input, response_text))
@@ -455,25 +525,38 @@ if user_input:
             
             # Professional answer header
             st.markdown("""
-            <div style='background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
-                <h2 style='color: white; margin: 0; font-size: 1.5rem; font-weight: 600;'>🎯 Analysis Results</h2>
-                <p style='color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0; font-size: 0.95rem;'>Based on your question: "{}</p>
+            <div style='background: linear-gradient(135deg, #1f2937 0%, #111827 100%); color: white; padding: 1rem 1.25rem; border-radius: 12px; margin-bottom: 0.75rem; border: 1px solid #334155;'>
+                <h2 style='color: #e5e7eb; margin: 0; font-size: 1.25rem; font-weight: 600;'>🎯 Analysis Results</h2>
+                <p style='color: rgba(229,231,235,0.75); margin: 0.35rem 0 0 0; font-size: 0.9rem;'>Based on your question: "{}"</p>
             </div>
             """.format(user_input), unsafe_allow_html=True)
             
-            # Main answer content
-            st.markdown(response_text, unsafe_allow_html=True)
+            # Main answer content with highlight
+            st.markdown(f"""
+            <div class='answer-highlight'>
+                {response_text}
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Suggestion buttons (replace bullet list)
+            if suggestions:
+                cols = st.columns(min(3, len(suggestions)))
+                for i, s in enumerate(suggestions):
+                    with cols[i % len(cols)]:
+                        if st.button(s, use_container_width=True, key=f"sugg_btn_{i}"):
+                            st.session_state.user_input = s.replace("[", "").replace("]", "")
+                            st.rerun()
             
-            # Show conversation context indicator (subtle)
-            if conversation_history:
+            # Show conversation context indicator only in debug mode
+            if conversation_history and st.session_state.get("debug_mode"):
                 st.markdown(f"""
                 <div style='background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 0.75rem; margin: 1rem 0;'>
                     <p style='color: #0369a1; margin: 0; font-size: 0.9rem;'>💬 Using context from {len(conversation_history)} previous exchanges</p>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Thought process (collapsed by default, professional styling)
-            if thought_text:
+            # Thought process visible only in debug mode
+            if thought_text and st.session_state.get("debug_mode"):
                 with st.expander("🔍 Analysis Methodology", expanded=False):
                     st.markdown(f"""
                     <div style='background: #f8fafc; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6;'>
@@ -488,64 +571,65 @@ if user_input:
             # Interactive data display with professional styling
             if df_out is not None:
                 st.markdown("""
-                <div style='background: #f8fafc; padding: 1.5rem; border-radius: 12px; margin: 1.5rem 0; border: 1px solid #e2e8f0;'>
-                    <h3 style='color: #1e293b; margin: 0 0 1rem 0; font-size: 1.2rem; font-weight: 600;'>📊 Data Insights</h3>
-                    <p style='color: #64748b; margin: 0 0 1rem 0; font-size: 0.9rem;'>Detailed analysis results from your query</p>
+                <div style='background: transparent; padding: 1rem 0; border-radius: 12px; margin: 0.5rem 0 1rem 0; border: none; height: 120px; display:flex; flex-direction:column; justify-content:center;'>
+                    <h3 style='color: #e5e7eb; margin: 0 0 0.25rem 0; font-size: 1.2rem; font-weight: 600;'>📊 Data Insights</h3>
+                    <p style='color: rgba(229,231,235,0.7); margin: 0; font-size: 0.9rem; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;'>Detailed analysis results from your query</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
                 st.dataframe(df_out, use_container_width=True)
                 
-                # Professional download section
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    csv = df_out.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Export CSV",
-                        data=csv,
-                        file_name=f"fetii_analysis_{func if func else 'results'}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
+                # Export removed for hackathon UI cleanliness
             
             # Chart with professional styling
             if chart:
                 st.markdown("""
-                <div style='background: #f8fafc; padding: 1.5rem; border-radius: 12px; margin: 1.5rem 0; border: 1px solid #e2e8f0;'>
-                    <h3 style='color: #1e293b; margin: 0 0 1rem 0; font-size: 1.2rem; font-weight: 600;'>📈 Visual Analysis</h3>
-                    <p style='color: #64748b; margin: 0 0 1rem 0; font-size: 0.9rem;'>Interactive chart showing key patterns and trends</p>
+                <div style='background: transparent; padding: 1rem 0; border-radius: 12px; margin: 0.5rem 0 1rem 0; border: none; height: 120px; display:flex; flex-direction:column; justify-content:center;'>
+                    <h3 style='color: #e5e7eb; margin: 0 0 0.25rem 0; font-size: 1.2rem; font-weight: 600;'>📈 Visual Analysis</h3>
+                    <p style='color: rgba(229,231,235,0.7); margin: 0; font-size: 0.9rem; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;'>Interactive chart showing key patterns and trends</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
                 st.pyplot(chart)
                 
-                # Professional chart download
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    if st.button("📥 Export Chart", use_container_width=True):
-                        chart.savefig("fetii_chart.png", dpi=300, bbox_inches='tight')
-                        with open("fetii_chart.png", "rb") as file:
-                            st.download_button(
-                                label="Download PNG",
-                                data=file.read(),
-                                file_name="fetii_chart.png",
-                                mime="image/png",
-                                use_container_width=True
-                            )
+                # Chart export removed for hackathon UI cleanliness
             
             st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Add a button to ask a new question
-    if st.button("🔄 Ask New Question", use_container_width=True):
-        st.session_state.user_input = None
-        st.rerun()
+
+    # Follow-up vs New Question controls
+    st.markdown("""
+    <div style='display:flex; flex-direction:column; gap: 1rem; margin-top: 1rem;'>
+        <div style='background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid #065f46;'>
+            <h4 style='color: #ecfdf5; margin: 0 0 0.5rem 0; font-size: 1.05rem; font-weight: 600;'>↪️ Continue this conversation</h4>
+            <p style='color:#d1fae5; margin:0 0 0.5rem 0; font-size:0.9rem;'>Ask a follow-up to refine the current answer.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_follow, col_new = st.columns(2)
+    with col_follow:
+        follow_up = st.text_input("", placeholder="Type a follow-up question...", key="followup_input")
+        if st.button("Continue", use_container_width=True, key="continue_btn") and follow_up:
+            st.session_state.user_input = follow_up
+            st.rerun()
+    with col_new:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%); padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid #1e40af; margin-bottom: 0.5rem; height: 64px; display:flex; align-items:center;'>
+            <h4 style='color: #e0e7ff; margin: 0; font-size: 1.05rem; font-weight: 600;'>✨ Start a new question</h4>
+        </div>
+        """, unsafe_allow_html=True)
+        fresh_q = st.text_input("", placeholder="Ask something unrelated...", key="new_question_input")
+        if st.button("Ask New Question", use_container_width=True, key="new_question_btn") and fresh_q:
+            st.session_state.history = []
+            st.session_state.user_input = fresh_q
+            st.rerun()
 
 # === Compact Additional Tools ===
 st.markdown("""
-<div style='background: #f8fafc; padding: 1.5rem; border-radius: 16px; margin: 2rem 0; border: 1px solid #e2e8f0;'>
+<div style='background: transparent; padding: 1.5rem 0; border-radius: 16px; margin: 2rem 0; border: none;'>
     <div style='text-align: center; margin-bottom: 1.5rem;'>
-        <h3 style='color: #1e293b; margin: 0 0 0.5rem 0; font-size: 1.2rem; font-weight: 600;'>🛠️ Additional Tools</h3>
-        <p style='color: #64748b; margin: 0; font-size: 0.9rem;'>Quick actions and developer features</p>
+        <h3 style='color: #e5e7eb; margin: 0 0 0.5rem 0; font-size: 1.2rem; font-weight: 600;'>🛠️ Additional Tools</h3>
+        <p style='color: rgba(229,231,235,0.7); margin: 0; font-size: 0.9rem;'>Quick actions and developer features</p>
     </div>
 </div>
 """, unsafe_allow_html=True)

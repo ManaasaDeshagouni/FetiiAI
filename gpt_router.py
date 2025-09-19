@@ -7,12 +7,13 @@ import time
 import random
 from typing import Dict, Optional, Any
 from dotenv import load_dotenv
+import streamlit as st
 from openai import OpenAI
 from function_registry import FUNCTION_REGISTRY
 
 # Load environment variables
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # Convert function registry to OpenAI function calling format
@@ -80,16 +81,16 @@ def _structured_error(message: str, user_fallback: str) -> Dict[str, Any]:
         "parameters": {},
         "thought": message,
         "confidence": 0.1,
-        "response": user_fallback,
+        "response": "Hmm… I ran into a hiccup. Could you try again? If you want, ask about the **fewest rides** day or the **least crowded locations** 😊",
         "suggestions": [
-            "Try rephrasing your question",
-            "Ask about a different day or location",
-            "Ask about busiest times or quietest days"
+            "🗺️ Top Dropoff Locations",
+            "👥 Group Size Patterns",
+            "📊 Rider Demographics"
         ]
     }
 
 
-def enhanced_gpt_route_v3(user_question: str, conversation_history: list = None) -> Optional[Dict[str, Any]]:
+def gpt_route(user_question: str, conversation_history: list = None) -> Optional[Dict[str, Any]]:
     """
     Enhanced GPT Router 3.0 using OpenAI function calling with conversation context
     """
@@ -185,13 +186,13 @@ IMPORTANT: If the user is providing a follow-up answer (like "Friday" after you 
             "type": "natural_response",
             "function": None,
             "parameters": {},
-            "thought": f"User asked: '{user_question}'. This doesn't require specific data analysis.",
+            "thought": f"User asked: '{user_question}'. Offer friendly clarification and suggestions.",
             "confidence": 0.8,
-            "response": message.content or "I'm here to help you analyze Fetii rideshare data! What would you like to know?",
+            "response": message.content or "Hmm… do you mean the day with the **fewest rides** or the **least crowded locations**? Just checking 😊",
             "suggestions": [
-                "What are the most popular dropoff locations?",
-                "When do large groups ride most?",
-                "What's the age distribution of riders?"
+                "🗺️ Top Dropoff Locations",
+                "👥 Group Size Patterns",
+                "📊 Rider Demographics"
             ]
         }
         _route_cache[cache_key] = natural_response
