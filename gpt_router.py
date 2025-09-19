@@ -13,7 +13,7 @@ from function_registry import FUNCTION_REGISTRY
 
 # Load environment variables
 load_dotenv()
-OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+OPENAI_API_KEY = st.secrets["openai"]["api_key"]
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # Convert function registry to OpenAI function calling format
