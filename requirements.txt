@@ -1,0 +1,9 @@
+streamlit
+openai
+pandas
+matplotlib
+seaborn
+python-dotenv
+requests
+openpyxl
+gradio>=4.41.0
