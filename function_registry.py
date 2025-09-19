@@ -125,6 +125,18 @@ FUNCTION_REGISTRY = {
             "Do people ride differently on weekends?"
         ]
     }
+    ,
+    "quietest_day_overall": {
+        "name": "quietest_day_overall",
+        "purpose": "Find the quietest day by total rides across the dataset",
+        "description": "Aggregates trips by day of week and surfaces the day with the fewest rides, along with a ranked list.",
+        "signature": {},
+        "example_usage": "quietest_day_overall()",
+        "example_queries": [
+            "What is the quietest day?",
+            "Which day has the least rides?"
+        ]
+    }
 }
 
 # Function mapping to actual implementations
@@ -137,6 +149,8 @@ FUNCTION_IMPLEMENTATIONS = {
     "least_busy_locations_by_day": "least_busy_locations_by_day",
     "busiest_hours_by_location": "busiest_hours_by_location",
     "weekend_vs_weekday_patterns": "weekend_vs_weekday_patterns"
+    ,
+    "quietest_day_overall": "quietest_day_overall"
 }
 
 def get_function_descriptions() -> str:

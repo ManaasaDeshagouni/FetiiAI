@@ -13,7 +13,16 @@ from function_registry import FUNCTION_REGISTRY
 
 # Load environment variables
 load_dotenv()
-OPENAI_API_KEY = st.secrets["openai"]["api_key"]
+# Prefer Streamlit secrets, then environment variable
+OPENAI_API_KEY = None
+try:
+    OPENAI_API_KEY = st.secrets.get("openai", {}).get("api_key")
+except Exception:
+    OPENAI_API_KEY = None
+
+if not OPENAI_API_KEY:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # Convert function registry to OpenAI function calling format
@@ -188,11 +197,11 @@ IMPORTANT: If the user is providing a follow-up answer (like "Friday" after you 
             "parameters": {},
             "thought": f"User asked: '{user_question}'. Offer friendly clarification and suggestions.",
             "confidence": 0.8,
-            "response": message.content or "Hmm… do you mean the day with the **fewest rides** or the **least crowded locations**? Just checking 😊",
+            "response": message.content or "Hmm… do you mean the day with the **fewest rides** or the **least crowded locations**? If you want the overall quietest day, I can compute that too.",
             "suggestions": [
+                "Quietest day overall",
                 "🗺️ Top Dropoff Locations",
-                "👥 Group Size Patterns",
-                "📊 Rider Demographics"
+                "👥 Group Size Patterns"
             ]
         }
         _route_cache[cache_key] = natural_response

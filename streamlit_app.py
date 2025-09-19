@@ -14,6 +14,7 @@ from query_engine import (
     least_busy_locations_by_day,
     busiest_hours_by_location,
     weekend_vs_weekday_patterns,
+    quietest_day_overall,
     natural_summary,
     friendly_response,
 )
@@ -472,6 +473,8 @@ if user_input:
                     df_out, chart = busiest_hours_by_location(df, **params)
                 elif func == "weekend_vs_weekday_patterns":
                     df_out, chart = weekend_vs_weekday_patterns(df)
+                elif func == "quietest_day_overall":
+                    df_out, chart = quietest_day_overall(df)
 
                 # Generate dynamic summary using real df_out
                 if df_out is not None and len(df_out) > 0:
@@ -523,12 +526,10 @@ if user_input:
         if response_text or df_out is not None or chart:
             st.markdown('<div class="chat-container">', unsafe_allow_html=True)
             
-            # Professional answer header
+            # Minimal header without box
             st.markdown("""
-            <div style='background: linear-gradient(135deg, #1f2937 0%, #111827 100%); color: white; padding: 1rem 1.25rem; border-radius: 12px; margin-bottom: 0.75rem; border: 1px solid #334155;'>
-                <h2 style='color: #e5e7eb; margin: 0; font-size: 1.25rem; font-weight: 600;'>🎯 Analysis Results</h2>
-                <p style='color: rgba(229,231,235,0.75); margin: 0.35rem 0 0 0; font-size: 0.9rem;'>Based on your question: "{}"</p>
-            </div>
+            <h2 style='color: #e5e7eb; margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 700;'>🎯 Analysis Results</h2>
+            <p style='color: rgba(229,231,235,0.75); margin: 0 0 0.75rem 0; font-size: 0.95rem;'>Based on your question: "{}"</p>
             """.format(user_input), unsafe_allow_html=True)
             
             # Main answer content with highlight
@@ -608,17 +609,12 @@ if user_input:
 
     col_follow, col_new = st.columns(2)
     with col_follow:
-        follow_up = st.text_input("", placeholder="Type a follow-up question...", key="followup_input")
+        follow_up = st.text_input("Follow-up question", placeholder="Type a follow-up question...", key="followup_input", label_visibility="collapsed")
         if st.button("Continue", use_container_width=True, key="continue_btn") and follow_up:
             st.session_state.user_input = follow_up
             st.rerun()
     with col_new:
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%); padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid #1e40af; margin-bottom: 0.5rem; height: 64px; display:flex; align-items:center;'>
-            <h4 style='color: #e0e7ff; margin: 0; font-size: 1.05rem; font-weight: 600;'>✨ Start a new question</h4>
-        </div>
-        """, unsafe_allow_html=True)
-        fresh_q = st.text_input("", placeholder="Ask something unrelated...", key="new_question_input")
+        fresh_q = st.text_input("New question", placeholder="Ask something unrelated...", key="new_question_input", label_visibility="collapsed")
         if st.button("Ask New Question", use_container_width=True, key="new_question_btn") and fresh_q:
             st.session_state.history = []
             st.session_state.user_input = fresh_q

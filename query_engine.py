@@ -235,15 +235,48 @@ def weekend_vs_weekday_patterns(df: pd.DataFrame) -> Tuple[pd.DataFrame, plt.Fig
     return patterns, fig
 
 
+# Function 9: Quietest day overall (by trip count)
+def quietest_day_overall(df: pd.DataFrame) -> Tuple[pd.DataFrame, plt.Figure]:
+    """Return trip counts by day of week (ascending) and a simple bar chart.
+    The first row represents the quietest day by ride count.
+    """
+    counts = (
+        df.groupby("day_of_week")
+        .size()
+        .reindex(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])  # natural order
+        .reset_index(name="trip_count")
+        .sort_values("trip_count", ascending=True)
+    )
+
+    fig, ax = plt.subplots()
+    sns.barplot(data=counts, x="trip_count", y="day_of_week", ax=ax, palette="crest")
+    ax.set_title("Trips by Day of Week (Quietest at top)")
+    ax.set_xlabel("Trip Count")
+    ax.set_ylabel("Day of Week")
+    plt.tight_layout()
+    return counts, fig
+
+
 # === LLM-Native Functions ===
 
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import streamlit as st
 
 # Load environment variable
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Prefer Streamlit secrets, then fall back to environment variable
+OPENAI_API_KEY = None
+try:
+    if hasattr(st, "secrets"):
+        OPENAI_API_KEY = st.secrets.get("openai", {}).get("api_key")
+except Exception:
+    OPENAI_API_KEY = None
+
+if not OPENAI_API_KEY:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
